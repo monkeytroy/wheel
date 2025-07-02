@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spin the Chance Wheel!</title>
+  <!-- Tailwind CSS CDN for quick styling -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Tone.js CDN for sound effects -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
+  <style>
+    body {
+      font-family: "Inter", sans-serif;
+      background-color: #f0f4f8;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+      overflow: hidden;
+      /* Prevent scrollbars from appearing during spin */
+    }
+
+    #winner-display {
+      min-height: 5rem;
+      /* Reserve more space */
+      font-size: 3rem;
+      /* text-5xl */
+      font-weight: 800;
+      /* font-extrabold */
+      text-align: center;
+      color: #1a202c;
+      /* gray-900 */
+      margin-bottom: 2rem;
+      /* More margin */
+      line-height: 1.2;
+    }
+
+    #game-container {
+      background-color: #ffffff;
+      border-radius: 1.5rem;
+      box-shadow: 0 15px 25px rgba(0, 0, 0, 0.15);
+      padding: 4rem;
+      /* Increased padding */
+      max-width: 800px;
+      /* Increased max-width */
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+    }
+
+    #wheel-wrapper {
+      position: relative;
+      width: 500px;
+      /* Increased wheel size */
+      height: 500px;
+      /* Increased wheel size */
+      margin-bottom: 2rem;
+    }
+
+    #wheel-canvas {
+      border: 7px solid #4a5568;
+      /* Thicker border for larger wheel */
+      border-radius: 50%;
+      display: block;
+      cursor: pointer;
+      transition: box-shadow 0.2s ease-in-out;
+      width: 500px;
+      /* Ensure canvas scales visually */
+      height: 500px;
+    }
+
+    #wheel-canvas:not(.spinning):hover {
+      box-shadow: 0 0 20px rgba(37, 99, 235, 0.6);
+      /* Blue glow on hover */
+    }
+
+    #winner-indicator {
+      position: absolute;
+      top: -15px;
+      /* Position further above the wheel */
+      left: 50%;
+      transform: translateX(-50%);
+      width: 3px;
+      /* Thicker line */
+      height: 30px;
+      /* Taller line */
+      background-color: #ef4444;
+      /* Red indicator */
+      z-index: 10;
+    }
+
+    #controls {
+      display: flex;
+      gap: 1.5rem;
+      /* More space between buttons */
+      margin-top: 1.5rem;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 0.75rem;
+      /* Rounded-xl */
+      font-weight: 600;
+      /* Semibold */
+      padding: 0.875rem 1.75rem;
+      /* py-3.5 px-7 */
+      transition: all 0.2s ease-in-out;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      cursor: pointer;
+      border: none;
+    }
+
+    .btn-primary {
+      background-color: #2563eb;
+      /* Blue-600 */
+      color: #ffffff;
+      font-size: 1.25rem;
+      /* text-xl */
+      height: 3.5rem;
+      /* h-14 */
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background-color: #1d4ed8;
+      /* Blue-700 */
+      transform: translateY(-3px);
+      box-shadow: 0 8px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .btn-secondary {
+      background-color: #e2e8f0;
+      /* Gray-200 */
+      color: #2d3748;
+      /* Gray-800 */
+      font-size: 1.125rem;
+      /* text-lg */
+      height: 3.5rem;
+      /* h-14 */
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background-color: #cbd5e0;
+      /* Gray-300 */
+      transform: translateY(-2px);
+      box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    #message-box {
+      margin-top: 2rem;
+      /* More margin */
+      padding: 1rem;
+      /* More padding */
+      border-radius: 0.75rem;
+      /* More rounded */
+      background-color: #fffbeb;
+      /* Yellow-100 */
+      color: #92400e;
+      /* Yellow-800 */
+      border: 1px solid #fcd34d;
+      /* Yellow-300 */
+      text-align: center;
+      font-size: 1rem;
+      /* text-base */
+      display: none;
+      /* Hidden by default */
+    }
+  </style>
+</head>
+
+<body class="antialiased">
+
+  <div id="game-container">
+    <div id="winner-display" class="text-4xl font-extrabold text-gray-900 mb-6">
+      Spin the Wheel!
+    </div>
+
+    <div id="wheel-wrapper">
+      <canvas id="wheel-canvas" width="400" height="400" class="rounded-full"></canvas>
+      <div id="winner-indicator"></div>
+    </div>
+
+    <div id="controls">
+      <button id="spinButton" class="btn btn-primary">Spin!</button>
+    </div>
+
+    <div id="message-box" class="hidden"></div>
+  </div>
+
+  <script>
+    // --- Configuration ---
+    const options = [
+      { name: "Wireless 🎧", percentage: 15 },
+      { name: "Trip to Universal", percentage: 18 },
+      { name: "$200", percentage: 15 },
+      { name: "Sharks on Ice!", percentage: 7 },
+      { name: "Phone w Number", percentage: 20 },
+      { name: "Ben Rector!", percentage: 25 }
+    ];
+
+    const spinDuration = 6000; // milliseconds
+    const minFullSpins = 5;    // Minimum number of full rotations for effect
+    let forceSharksOnIce = false; // Add this flag
+
+    // Light color palette for slices (adjust as needed)
+    const colors = [
+      "#FFDDC1", "#CCE5FF", "#D4EDDA", "#FFF3CD", "#E0BBE4", "#FFC3A0",
+      "#B2DFDB", "#F0F8FF", "#FFE0B2", "#D1C4E9"
+    ];
+
+    // --- DOM Elements ---
+    const canvas = document.getElementById('wheel-canvas');
+    const ctx = canvas.getContext('2d');
+    const spinButton = document.getElementById('spinButton');
+    const winnerDisplay = document.getElementById('winner-display');
+    const messageBox = document.getElementById('message-box');
+
+    // --- Game State ---
+    let currentRotation = 0; // Current rotation angle of the wheel in degrees
+    let isSpinning = false;
+    let audioContext; // Tone.js AudioContext
+    let spinSynth;    // Tone.js synth for spinning sound (for preview)
+    let winSynth;     // Tone.js synth for win sound (for preview)
+    let spinLoop;     // Tone.js Loop for repeated spin sound
+
+    // --- MP3 Audio Players (Disabled for preview, enable when hosted) ---
+    // To use these, set USE_MP3_SOUNDS = true and provide valid URLs.
+    // Remember to handle CORS if audio files are on a different domain.
+    const USE_MP3_SOUNDS = true; // Set to true when hosted with real MP3s
+    let spinPlayer;
+    let winPlayer;
+
+    const MP3_SPIN_SOUND_URL = 'SoundHelix-Song-3.mp3'; // Replace with your spin sound MP3 URL
+    const MP3_WIN_SOUND_URL = 'SoundHelix-Song-4.mp3';   // Replace with your win sound MP3 URL
+
+    // --- Initialization ---
+
+    /**
+     * Initializes Tone.js audio context and synths/players.
+     */
+    async function initAudio() {
+      if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        await Tone.start(); // Resume audio context on user gesture
+
+        if (USE_MP3_SOUNDS) {
+          try {
+            spinPlayer = new Tone.Player(MP3_SPIN_SOUND_URL).toDestination();
+            winPlayer = new Tone.Player(MP3_WIN_SOUND_URL).toDestination();
+            // Preload the players
+            await Promise.all([spinPlayer.load(MP3_SPIN_SOUND_URL), winPlayer.load(MP3_WIN_SOUND_URL)]);
+            console.log("MP3 audio players loaded.");
+          } catch (error) {
+            console.error("Error loading MP3 audio players:", error);
+            showMessage("Error loading MP3 sounds. Falling back to synth sounds.", 'error');
+            // Set USE_MP3_SOUNDS to false if loading fails, so it uses synths
+            USE_MP3_SOUNDS = false;
+          }
+        }
+
+        // Always initialize synths as fallback or primary for preview
+        spinSynth = new Tone.NoiseSynth({
+          noise: { type: "pink" },
+          envelope: {
+            attack: 0.005,
+            decay: 0.1, // Short decay
+            sustain: 0, // No sustain, makes it percussive
+            release: 0.05 // Quick release
+          }
+        }).toDestination();
+
+        winSynth = new Tone.Synth({
+          oscillator: { type: "sine" },
+          envelope: {
+            attack: 0.05,
+            decay: 0.3,
+            sustain: 0.0,
+            release: 0.5
+          }
+        }).toDestination();
+
+        // Tone.Loop for the spinning sound effect (series of clicks/ticks)
+        spinLoop = new Tone.Loop(time => {
+          if (isSpinning) {
+            // Always use synth for the "tick" sound in the loop for consistency
+            spinSynth.triggerAttackRelease("64n", time); // Very short burst
+          }
+        }, "16n").start(0); // Trigger every 16th note (e.g., 4 times per second at 120bpm)
+      }
+    }
+
+    /**
+     * Displays a temporary message in the message box.
+     * @param {string} message - The message to display.
+     * @param {string} type - 'info', 'error', 'success' for styling.
+     */
+    function showMessage(message, type = 'info') {
+      messageBox.textContent = message;
+      messageBox.className = 'mt-6 p-3 rounded-lg text-center text-sm';
+      if (type === 'error') {
+        messageBox.classList.add('bg-red-100', 'text-red-800', 'border', 'border-red-300');
+      } else if (type === 'success') {
+        messageBox.classList.add('bg-green-100', 'text-green-800', 'border', 'border-green-300');
+      } else {
+        messageBox.classList.add('bg-blue-100', 'text-blue-800', 'border', 'border-blue-300');
+      }
+      messageBox.classList.remove('hidden');
+      setTimeout(() => {
+        messageBox.classList.add('hidden');
+      }, 3000); // Hide after 3 seconds
+    }
+
+    /**
+     * Draws the wheel on the canvas.
+     */
+    function drawWheel() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas
+
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+      const radius = Math.min(centerX, centerY) - 5; // Slightly smaller to show border
+
+      // Start drawing from the top (12 o'clock)
+      // Apply currentRotation as an offset to the initial drawing angle
+      let startAngle = currentRotation * (Math.PI / 180) - (Math.PI / 2); // Subtract 90 degrees to make 0 at top
+
+      options.forEach((option, index) => {
+        const sliceAngle = (option.percentage / 100) * (2 * Math.PI); // Angle in radians
+
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius, startAngle, startAngle + sliceAngle);
+        ctx.lineTo(centerX, centerY);
+        ctx.closePath();
+
+        ctx.fillStyle = colors[index % colors.length]; // Cycle through colors
+        ctx.fill();
+        ctx.strokeStyle = '#4a5568'; // Slice borders
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Draw text
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        // Rotate to the middle of the slice relative to its starting point (which is now 12 o'clock)
+        ctx.rotate(startAngle + sliceAngle / 2);
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#000000'; // Black text
+        ctx.font = 'bold 18px Inter, sans-serif'; // Increased font size
+        ctx.fillText(option.name, radius - 15, 0); // Position text inside slice (adjusted for larger radius)
+        ctx.restore();
+
+        startAngle += sliceAngle;
+      });
+    }
+
+    /**
+     * Calculates the target rotation for the winning item.
+     * @param {number} winningIndex - The index of the chosen winning option.
+     * @returns {number} The target rotation in degrees.
+     */
+    function calculateTargetRotation(winningIndex) {
+      let cumulativePercentage = 0;
+      for (let i = 0; i < winningIndex; i++) {
+        cumulativePercentage += options[i].percentage;
+      }
+
+      // Angle from the top (0 degrees in this new drawing context) to the center of the winning slice
+      const angleCenterFromTop = (cumulativePercentage + options[winningIndex].percentage / 2) * 3.6;
+
+      // We want this angleCenterFromTop to land at 0 degrees (top).
+      // So, the rotation needed is (0 - angleCenterFromTop)
+      let baseRotation = -angleCenterFromTop;
+
+      // Ensure baseRotation is positive (e.g., -45 becomes 315)
+      baseRotation = (baseRotation % 360 + 360) % 360;
+
+      // Add multiple full spins for visual effect (no random offset)
+      const totalRotation = baseRotation + (minFullSpins * 360);
+      return totalRotation;
+    }
+
+    /**
+     * Picks a random winner based on percentages.
+     * @returns {number} The index of the winning option.
+     */
+    function pickRandomWinner() {
+      if (forceSharksOnIce) {
+        return options.findIndex(option => option.name === "Sharks on Ice!");
+      }
+      // Exclude "Sharks on Ice!" from random selection
+      const filteredOptions = options.filter(option => option.name !== "Sharks on Ice!");
+      const totalPercentage = filteredOptions.reduce((sum, option) => sum + option.percentage, 0);
+      const randomNumber = Math.random() * totalPercentage;
+      let cumulativePercentage = 0;
+      for (let i = 0; i < filteredOptions.length; i++) {
+        cumulativePercentage += filteredOptions[i].percentage;
+        if (randomNumber < cumulativePercentage) {
+          // Return the index in the original options array
+          return options.findIndex(option => option.name === filteredOptions[i].name);
+        }
+      }
+      // Fallback: return first non-sharks option
+      return options.findIndex(option => option.name !== "Sharks on Ice!");
+    }
+
+    document.addEventListener('click', function (event) {
+      const gameContainer = document.getElementById('game-container');
+      if (!gameContainer.contains(event.target)) {
+        forceSharksOnIce = true;
+        showMessage('Now forcing "Sharks on Ice!" as the winner.', 'info');
+      }
+    });
+
+    /**
+     * Easing function for deceleration (easeOutCubic).
+     * @param {number} t - Progress (0 to 1).
+     * @returns {number} Eased progress.
+     */
+    function easeOutCubic(t) {
+      return (--t) * t * t + 1;
+    }
+
+    /**
+     * Starts the wheel spinning animation.
+     */
+    async function spinWheel() {
+      if (isSpinning) return;
+      resetWheel(); // <-- Add this line to auto-reset before spinning
+
+      isSpinning = true;
+      spinButton.disabled = true;
+      winnerDisplay.textContent = "Spinning...";
+      messageBox.classList.add('hidden');
+
+      await initAudio(); // Ensure audio context is resumed
+
+      const winningIndex = pickRandomWinner();
+      const targetRotation = calculateTargetRotation(winningIndex);
+      const startRotation = currentRotation; // Capture current rotation for smooth start
+      const duration = forceSharksOnIce ? spinDuration * 2 : spinDuration;
+      const startTime = performance.now();
+
+      // Start the Tone.js transport for the loop to run
+      //Tone.Transport.start();
+
+      // Play continuous spin sound if using MP3s and loaded
+      if (USE_MP3_SOUNDS && spinPlayer && spinPlayer.loaded) {
+        spinPlayer.loop = true; // Loop the spin sound
+        spinPlayer.start();
+      }
+
+      function animate(time) {
+        const elapsed = time - startTime;
+        const progress = Math.min(elapsed / duration, 1); // Use dynamic duration
+        const easedProgress = easeOutCubic(progress)
+        currentRotation = startRotation + (targetRotation - startRotation) * easedProgress;
+        drawWheel();
+
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          // Animation finished
+          isSpinning = false;
+          spinButton.disabled = false;
+          winnerDisplay.textContent = options[winningIndex].name + "!";
+
+          // Stop Tone.js transport and spin sound
+          //Tone.Transport.stop();
+          spinLoop.stop(); // Ensure the loop is stopped
+          if (USE_MP3_SOUNDS && spinPlayer) {
+            spinPlayer.stop(); // Stop the looping MP3 spin sound
+          }
+
+          // Play win sound
+          if (USE_MP3_SOUNDS && winPlayer && winPlayer.loaded) {
+            winPlayer.start();
+          } else {
+            winSynth.triggerAttackRelease("C5", "0.5"); // Play a winning synth sound
+          }
+          showMessage(`Congratulations! You won: ${options[winningIndex].name}`, 'success');
+        }
+      }
+      requestAnimationFrame(animate);
+    }
+
+    /**
+     * Resets the wheel to its initial state.
+     */
+    function resetWheel() {
+      if (isSpinning) return;
+      currentRotation = 0;
+      drawWheel();
+      winnerDisplay.textContent = "Spin the Wheel!";
+      spinButton.disabled = false;
+      messageBox.classList.add('hidden');
+      // Ensure all sounds are stopped
+      if (spinLoop) spinLoop.stop();
+      //if (Tone.Transport.state === 'started') Tone.Transport.stop();
+      if (USE_MP3_SOUNDS && spinPlayer) spinPlayer.stop();
+      if (USE_MP3_SOUNDS && winPlayer) winPlayer.stop();
+    }
+
+    // --- Event Listeners ---
+    spinButton.addEventListener('click', spinWheel);
+
+    // Initial draw
+    drawWheel();
+
+  </script>
+</body>
+
+</html>
